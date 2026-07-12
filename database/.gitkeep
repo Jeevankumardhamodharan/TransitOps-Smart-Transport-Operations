@@ -1,0 +1,96 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import Layout from './components/layout/Layout';
+import Login from './pages/auth/Login';
+import Dashboard from './pages/dashboard/Dashboard';
+import Vehicles from './pages/vehicles/Vehicles';
+import Drivers from './pages/drivers/Drivers';
+import Trips from './pages/trips/Trips';
+import Maintenance from './pages/maintenance/Maintenance';
+import FuelLogs from './pages/fuel/FuelLogs';
+import Expenses from './pages/expenses/Expenses';
+import Reports from './pages/reports/Reports';
+import LoadingSpinner from './components/ui/LoadingSpinner';
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" text="Loading TransitOps…" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" text="Loading…" />
+      </div>
+    );
+  }
+  if (user) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="vehicles" element={<Vehicles />} />
+        <Route path="drivers" element={<Drivers />} />
+        <Route path="trips" element={<Trips />} />
+        <Route path="maintenance" element={<Maintenance />} />
+        <Route path="fuel" element={<FuelLogs />} />
+        <Route path="expenses" element={<Expenses />} />
+        <Route path="reports" element={<Reports />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <ToastProvider>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </ToastProvider>
+    </BrowserRouter>
+  );
+}
+/*
+# Fix user_profiles INSERT policy to allow upsert
+
+The original INSERT policy blocked profile creation because the user
+wasn't authenticated when the profile row was first attempted.
+This migration drops and recreates the INSERT policy to also allow upsert
+(ON CONFLICT DO UPDATE) to work correctly once the user is signed in.
+*/
+
+DROP POLICY IF EXISTS "insert_user_profiles" ON user_profiles;
+CREATE POLICY "insert_user_profiles" ON user_profiles FOR INSERT
+  TO authenticated WITH CHECK (auth.uid() = id);
+
+DROP POLICY IF EXISTS "update_user_profiles" ON user_profiles;
+CREATE POLICY "update_user_profiles" ON user_profiles FOR UPDATE
+  TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+
